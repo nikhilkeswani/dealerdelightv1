@@ -1,0 +1,73 @@
+## CRITICAL ADDITIONS NEEDED:
+
+### 1. Trial Logic & Monetization Path
+
+Add to Task 1 (Database Schema):
+```
+dealerships table additions:
+- trial_starts_at: timestamp (set on signup)
+- trial_ends_at: timestamp (14 days from signup)  
+- subscription_status: enum ('trial', 'active', 'expired', 'cancelled')
+- stripe_customer_id: string (nullable, for future payment integration)
+```
+
+Add to Task 7 (Dashboard):
+- Trial countdown banner at top: "⏰ 12 days left in your trial - [Upgrade to Pro]"
+- Calculate days remaining: trial_ends_at - current_date
+- Show upgrade prompt when < 3 days remain
+- Block dashboard access if trial expired (redirect to /upgrade page)
+
+Add new Task 13: Upgrade Page Placeholder
+- Create /upgrade page
+- Show pricing: $199/mo
+- "Contact us to upgrade" button (email/form for now)
+- Future: Stripe payment integration
+
+### 2. Onboarding Email Sequence
+
+Add new Task 14: Welcome Email Setup
+- Integrate Resend (already configured from demo form)
+- Send welcome email on signup with:
+  * Login link
+  * "Next step: Add your first vehicle"
+  * Support contact
+- Set up email template in server/emails/welcome.tsx
+
+### 3. Basic Analytics/Event Tracking
+
+Add to Task 1 (Database Schema):
+```
+events table:
+- id: serial
+- user_id: references users.id
+- dealership_id: references dealerships.id  
+- event_name: string
+- created_at: timestamp
+```
+
+Add event logging to:
+- Task 2: Log 'signup_completed' event
+- Task 8: Log 'template_selected' event
+- Task 7: Log 'dashboard_viewed' event on first render
+
+---
+
+## SIMPLIFICATIONS TO SAVE TIME:
+
+### 1. Simplify Session Management
+
+Modify Task 3: 
+- Keep existing Passport.js session approach (in-memory is fine for Phase 1)
+- Skip database-persisted sessions for now
+- Document as Phase 2 improvement when we have 50+ concurrent users
+
+### 2. Defer Password Reset
+
+Modify Task 12:
+- Remove password reset flow from Phase 1
+- If users forget password, manually reset in database
+- Add proper "Forgot Password" feature in Phase 2
+
+---
+
+With these changes, Phase 1 will have a complete trial-to-paid conversion path while staying lean. Timeline remains 2 weeks.

@@ -1,0 +1,147 @@
+## Prompt for Replit (Under 200 Words)
+
+**Make these improvements to the landing page:**
+
+**1. Add "Problems Dealers Face" section** (after social proof cards, before "See Your Platform"):
+- Headline: "Tired of Expensive, Outdated Dealer Websites?"
+- Three problem cards with icons:
+  - **Expensive Agencies**: "Paying €1,000+ upfront for basic WordPress sites that take weeks to build"
+  - **Separate CRM Systems**: "Buying additional CRM tools as you grow—juggling multiple platforms and passwords"
+  - **Slow, Outdated Sites**: "Losing customers to competitors with faster, mobile-friendly websites"
+- Add transition text below: "There's a better way..."
+
+**2. Improve vehicle display** in template preview:
+- Replace small car icons with realistic vehicle cards
+- Each card shows: car photo, "2023 BMW 3 Series", "€45,000", "12,000 km", "View Details" button
+- Use 3-4 vehicle cards in a grid
+
+**3. Add second CTA button** after "See Your Platform" section:
+- Button text: "Get Started Today"
+- Links to the form at bottom
+
+**4. Improve form section headline:**
+- Change to: "Ready to Sell More Cars Online?"
+- Subheadline: "Book your free demo. See your dealership online in 24 hours."
+
+---
+
+## What to Add in Problem Section (Detailed)
+
+Here's the exact content for the three problem cards:
+
+### **Problem 1: Expensive Agencies** 💰
+**Icon:** Dollar sign or money bag
+**Headline:** "Paying €1,000+ for Basic Sites"
+**Description:** "Traditional web agencies charge thousands upfront for outdated WordPress sites. Updates cost extra, and you're locked into their timeline—often waiting 4-8 weeks just to go live."
+
+**Why this works:** Hits their wallet directly, shows you understand their frustration
+
+---
+
+### **Problem 2: Separate CRM Systems** 🔧
+**Icon:** Puzzle pieces or disconnected tools
+**Headline:** "Buying CRM Tools Separately"
+**Description:** "First you build a website, then you realize you need a CRM. Now you're managing multiple platforms, paying multiple subscriptions, and manually transferring leads between systems. It's messy and inefficient."
+
+**Why this works:** Shows the hidden costs and complexity they face
+
+---
+
+### **Problem 3: Slow, Outdated Sites** 🐌
+**Icon:** Snail or slow loading symbol
+**Headline:** "Losing Sales to Slow Websites"
+**Description:** "Your current website loads slowly, looks dated on mobile, and doesn't showcase your inventory well. Meanwhile, tech-savvy competitors are capturing the customers you're losing. Every second of delay costs you sales."
+
+**Why this works:** Creates urgency—they're losing money RIGHT NOW
+
+---
+
+## Alternative Problem Framing (If You Want Stronger Impact)
+
+Instead of cards, use a comparison approach:
+
+**Headline:** "Stop Settling for Less"
+
+**Old Way (Left Column):**
+- ❌ €1,000+ upfront costs
+- ❌ 4-8 week build times
+- ❌ Separate CRM subscriptions
+- ❌ Slow, clunky websites
+- ❌ Technical headaches
+- ❌ Hidden update fees
+
+**New Way with DealerDelight (Right Column):**
+- ✅ €199/month, all-inclusive
+- ✅ Live in 24 hours
+- ✅ CRM included from day one
+- ✅ Lightning-fast, mobile-optimized
+- ✅ We handle the tech
+- ✅ Unlimited updates included
+
+**Why this works:** Direct comparison makes your value crystal clear
+
+---
+
+## Psychological Triggers to Include
+
+### **1. Loss Aversion**
+"Every day without a modern website, you're losing customers to competitors"
+
+### **2. Time Pressure**
+"How many sales have you missed while waiting for your website to be built?"
+
+### **3. Hidden Costs**
+"That €1,000 website? Factor in hosting (€100/year), updates (€500/year), CRM (€500/year)—suddenly you're at €2,100+ annually for an inferior solution"
+
+### **4. Complexity Pain**
+"Tired of logging into 5 different systems just to manage your online presence?"
+
+---
+
+## My Recommendation for Problem Section
+
+Use the **three-card approach** with these specific headlines and descriptions:
+
+### Card 1: "€1,000+ for Outdated Websites"
+"Traditional agencies charge thousands upfront for basic WordPress sites that take 4-8 weeks to build. You're paying premium prices for last decade's technology."
+
+### Card 2: "Your Tools Don't Talk to Each Other"
+"Website from one vendor, CRM from another, inventory system from a third. You're juggling logins, manually transferring data, and wasting hours on tasks that should be automatic."
+
+### Card 3: "Your Competitors Are Selling While You Load"
+"Your website takes 5+ seconds to load. Google penalizes you, mobile shoppers leave, and tech-savvy competitors capture the customers you're losing. Every second costs you sales."
+
+**Transition text below cards:**
+"DealerDelight solves all three problems. One platform. One price. No headaches."
+
+---
+
+## Why This Problem Section Will Boost Conversions
+
+**Before seeing this section, dealers think:**
+- "My current website is fine"
+- "€199/month seems expensive"
+- "I'll think about it"
+
+**After seeing this section, dealers think:**
+- "Wow, I'm actually overpaying right now"
+- "€199/month is cheaper than what I'm doing"
+- "I need to fix this TODAY"
+
+**The problem section transforms your pricing from "expensive" to "a bargain."**
+
+---
+
+## Quick Visual Tips
+
+**Design the problem cards to look "painful":**
+- Use red/orange accent colors (suggests urgency)
+- Slightly darker background (creates contrast with solution sections)
+- Use X marks or warning icons
+- Make them look visually "heavy" or "broken"
+
+**Then your solution sections look "light" and "clean" by comparison**
+
+---
+
+Want me to refine the exact copy further, or is this ready to send to Replit?
