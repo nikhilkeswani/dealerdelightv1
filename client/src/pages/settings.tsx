@@ -55,7 +55,6 @@ export default function Settings() {
 
   useEffect(() => {
     if (error) {
-      localStorage.removeItem("auth_token");
       setLocation("/login");
     }
   }, [error, setLocation]);

@@ -70,7 +70,6 @@ export default function Website() {
 
   useEffect(() => {
     if (error) {
-      localStorage.removeItem("auth_token");
       setLocation("/login");
     }
   }, [error, setLocation]);
@@ -89,20 +88,11 @@ export default function Website() {
 
   const updateTemplateMutation = useMutation({
     mutationFn: async (templateStyle: string) => {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`/api/dealerships/${data?.dealership?.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ templateStyle }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update template");
-      }
-
+      const response = await apiRequest(
+        "PATCH",
+        `/api/dealerships/${data?.dealership?.id}`,
+        { templateStyle }
+      );
       return response.json();
     },
     onSuccess: () => {

@@ -58,7 +58,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (error) {
-      localStorage.removeItem("auth_token");
+      // Session expired or not authenticated, redirect to login
       setLocation("/login");
     }
   }, [error, setLocation]);
