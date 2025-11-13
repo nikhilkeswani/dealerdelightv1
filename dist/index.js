@@ -14,11 +14,17 @@ import { createServer } from "http";
 var schema_exports = {};
 __export(schema_exports, {
   dealerships: () => dealerships,
+  inquiries: () => inquiries,
+  insertBusinessDetailsSchema: () => insertBusinessDetailsSchema,
   insertDealershipSchema: () => insertDealershipSchema,
+  insertInquirySchema: () => insertInquirySchema,
   insertLeadSchema: () => insertLeadSchema,
   insertUserSchema: () => insertUserSchema,
+  insertVehicleSchema: () => insertVehicleSchema,
   leads: () => leads,
-  users: () => users
+  sessions: () => sessions,
+  users: () => users,
+  vehicles: () => vehicles
 });
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp } from "drizzle-orm/pg-core";
@@ -28,7 +34,14 @@ var dealerships = pgTable("dealerships", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
-  templateStyle: text("template_style").notNull().default("classic"),
+  templateStyle: text("template_style").notNull().default(""),
+  address: text("address"),
+  phone: text("phone"),
+  hours: text("hours"),
+  about: text("about"),
+  tagline: text("tagline"),
+  logoUrl: text("logo_url"),
+  heroImageUrl: text("hero_image_url"),
   trialStartsAt: timestamp("trial_starts_at").notNull().defaultNow(),
   trialEndsAt: timestamp("trial_ends_at").notNull(),
   subscriptionStatus: text("subscription_status").notNull().default("trial"),
@@ -55,6 +68,33 @@ var leads = pgTable("leads", {
   message: text("message"),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
+var vehicles = pgTable("vehicles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealershipId: varchar("dealership_id").references(() => dealerships.id).notNull(),
+  title: text("title").notNull(),
+  year: text("year").notNull(),
+  make: text("make").notNull(),
+  model: text("model").notNull(),
+  price: text("price").notNull(),
+  imageUrl: text("image_url"),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+var inquiries = pgTable("inquiries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealershipId: varchar("dealership_id").references(() => dealerships.id).notNull(),
+  vehicleId: varchar("vehicle_id").references(() => vehicles.id),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("new"),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+var sessions = pgTable("session", {
+  sid: varchar("sid").primaryKey(),
+  sess: text("sess").notNull(),
+  expire: timestamp("expire").notNull()
+});
 var insertDealershipSchema = createInsertSchema(dealerships).omit({
   id: true,
   createdAt: true,
@@ -76,6 +116,27 @@ var insertLeadSchema = createInsertSchema(leads).omit({
   id: true,
   createdAt: true
 });
+var insertVehicleSchema = createInsertSchema(vehicles).omit({
+  id: true,
+  createdAt: true,
+  dealershipId: true
+});
+var insertInquirySchema = createInsertSchema(inquiries).omit({
+  id: true,
+  createdAt: true,
+  dealershipId: true,
+  status: true
+}).extend({
+  customerEmail: z.string().email("Please enter a valid email address"),
+  customerPhone: z.string().min(6, "Please enter a valid phone number"),
+  message: z.string().min(10, "Please provide at least 10 characters")
+});
+var insertBusinessDetailsSchema = z.object({
+  address: z.string().min(5, "Address is required"),
+  phone: z.string().min(10, "Phone number is required"),
+  hours: z.string().min(5, "Business hours are required"),
+  about: z.string().min(20, "Please provide at least 20 characters about your dealership")
+});
 
 // server/db.ts
 import { Pool, neonConfig } from "@neondatabase/serverless";
@@ -91,7 +152,7 @@ var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = drizzle({ client: pool, schema: schema_exports });
 
 // server/storage.ts
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count } from "drizzle-orm";
 var DatabaseStorage = class {
   async getUser(id) {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -139,41 +200,64 @@ var DatabaseStorage = class {
     const [lead] = await db.select().from(leads).where(eq(leads.id, id));
     return lead || void 0;
   }
+  async createVehicle(dealershipId, vehicleData) {
+    const [vehicle] = await db.insert(vehicles).values({ ...vehicleData, dealershipId }).returning();
+    return vehicle;
+  }
+  async getVehiclesByDealership(dealershipId) {
+    return await db.select().from(vehicles).where(eq(vehicles.dealershipId, dealershipId)).orderBy(desc(vehicles.createdAt));
+  }
+  async getVehicleCount(dealershipId) {
+    const result = await db.select({ count: count() }).from(vehicles).where(eq(vehicles.dealershipId, dealershipId));
+    return result[0]?.count || 0;
+  }
+  async getVehicleById(id) {
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
+    return vehicle || void 0;
+  }
+  async updateVehicle(id, data) {
+    const [vehicle] = await db.update(vehicles).set(data).where(eq(vehicles.id, id)).returning();
+    return vehicle;
+  }
+  async deleteVehicle(id) {
+    await db.delete(vehicles).where(eq(vehicles.id, id));
+  }
+  async getDealershipBySlug(slug) {
+    const [dealership] = await db.select().from(dealerships).where(eq(dealerships.slug, slug));
+    return dealership || void 0;
+  }
+  async createInquiry(dealershipId, inquiryData) {
+    const [inquiry] = await db.insert(inquiries).values({ ...inquiryData, dealershipId }).returning();
+    return inquiry;
+  }
+  async getInquiriesByDealership(dealershipId) {
+    return await db.select().from(inquiries).where(eq(inquiries.dealershipId, dealershipId)).orderBy(desc(inquiries.createdAt));
+  }
+  async getUserByDealershipId(dealershipId) {
+    const [user] = await db.select().from(users).where(eq(users.dealershipId, dealershipId));
+    return user || void 0;
+  }
 };
 var storage = new DatabaseStorage();
 
 // server/email.ts
 import { Resend } from "resend";
-var connectionSettings;
-async function getCredentials() {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY ? "repl " + process.env.REPL_IDENTITY : process.env.WEB_REPL_RENEWAL ? "depl " + process.env.WEB_REPL_RENEWAL : null;
-  if (!xReplitToken) {
-    throw new Error("X_REPLIT_TOKEN not found for repl/depl");
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromEmail = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY environment variable is not set");
   }
-  connectionSettings = await fetch(
-    "https://" + hostname + "/api/v2/connection?include_secrets=true&connector_names=resend",
-    {
-      headers: {
-        "Accept": "application/json",
-        "X_REPLIT_TOKEN": xReplitToken
-      }
-    }
-  ).then((res) => res.json()).then((data) => data.items?.[0]);
-  if (!connectionSettings || !connectionSettings.settings.api_key) {
-    throw new Error("Resend not connected");
+  if (!fromEmail) {
+    throw new Error("RESEND_FROM_EMAIL environment variable is not set");
   }
-  return { apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email };
-}
-async function getUncachableResendClient() {
-  const { apiKey, fromEmail } = await getCredentials();
   return {
     client: new Resend(apiKey),
     fromEmail
   };
 }
 async function sendLeadNotification(lead) {
-  const { client, fromEmail } = await getUncachableResendClient();
+  const { client, fromEmail } = getResendClient();
   console.log("Sending email notification...");
   console.log("From email:", fromEmail);
   console.log("To email:", fromEmail);
@@ -197,7 +281,7 @@ async function sendLeadNotification(lead) {
   console.log("Email sent successfully:", result);
 }
 async function sendWelcomeEmail(user) {
-  const { client, fromEmail } = await getUncachableResendClient();
+  const { client, fromEmail } = getResendClient();
   console.log("Sending welcome email...");
   console.log("From email:", fromEmail);
   console.log("To email:", user.email);
@@ -235,30 +319,267 @@ async function sendWelcomeEmail(user) {
   });
   console.log("Welcome email sent successfully:", result);
 }
+async function sendInquiryNotification(inquiry) {
+  const { client, fromEmail } = getResendClient();
+  console.log("Sending inquiry notification...");
+  console.log("From email:", fromEmail);
+  console.log("To email:", inquiry.dealerEmail);
+  const result = await client.emails.send({
+    from: fromEmail,
+    to: inquiry.dealerEmail,
+    replyTo: inquiry.customerEmail,
+    subject: `New Customer Inquiry${inquiry.vehicleTitle ? ` - ${inquiry.vehicleTitle}` : ""}`,
+    html: `
+      <h2>New Customer Inquiry for ${inquiry.dealershipName}</h2>
+      ${inquiry.vehicleTitle ? `<p><strong>Vehicle of Interest:</strong> ${inquiry.vehicleTitle}</p>` : ""}
+      
+      <h3>Customer Details</h3>
+      <p><strong>Name:</strong> ${inquiry.customerName}</p>
+      <p><strong>Email:</strong> <a href="mailto:${inquiry.customerEmail}">${inquiry.customerEmail}</a></p>
+      <p><strong>Phone:</strong> ${inquiry.customerPhone}</p>
+      
+      <h3>Message</h3>
+      <p>${inquiry.message}</p>
+      
+      <hr>
+      <p><strong>Reply directly to this email to contact the customer.</strong></p>
+      <p style="color: #666; font-size: 12px;">
+        Submitted at: ${(/* @__PURE__ */ new Date()).toLocaleString()}
+      </p>
+    `
+  });
+  console.log("Inquiry notification sent successfully:", result);
+}
 
 // server/routes.ts
-import { randomBytes } from "crypto";
 import bcrypt from "bcrypt";
-var sessions = /* @__PURE__ */ new Set();
-var userSessions = /* @__PURE__ */ new Map();
-var TESTING_EMAILS = ["test@dealerdelight.com"];
+
+// server/objectStorage.ts
+import { Storage } from "@google-cloud/storage";
+import { randomUUID } from "crypto";
+
+// server/objectAcl.ts
+var ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
+function isPermissionAllowed(requested, granted) {
+  if (requested === "read" /* READ */) {
+    return ["read" /* READ */, "write" /* WRITE */].includes(granted);
+  }
+  return granted === "write" /* WRITE */;
+}
+function createObjectAccessGroup(group) {
+  switch (group.type) {
+    default:
+      throw new Error(`Unknown access group type: ${group.type}`);
+  }
+}
+async function setObjectAclPolicy(objectFile, aclPolicy) {
+  const [exists] = await objectFile.exists();
+  if (!exists) {
+    throw new Error(`Object not found: ${objectFile.name}`);
+  }
+  await objectFile.setMetadata({
+    metadata: {
+      [ACL_POLICY_METADATA_KEY]: JSON.stringify(aclPolicy)
+    }
+  });
+}
+async function getObjectAclPolicy(objectFile) {
+  const [metadata] = await objectFile.getMetadata();
+  const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
+  if (!aclPolicy) {
+    return null;
+  }
+  return JSON.parse(aclPolicy);
+}
+async function canAccessObject({
+  userId,
+  objectFile,
+  requestedPermission
+}) {
+  const aclPolicy = await getObjectAclPolicy(objectFile);
+  if (!aclPolicy) {
+    return false;
+  }
+  if (aclPolicy.visibility === "public" && requestedPermission === "read" /* READ */) {
+    return true;
+  }
+  if (!userId) {
+    return false;
+  }
+  if (aclPolicy.owner === userId) {
+    return true;
+  }
+  for (const rule of aclPolicy.aclRules || []) {
+    const accessGroup = createObjectAccessGroup(rule.group);
+    if (await accessGroup.hasMember(userId) && isPermissionAllowed(requestedPermission, rule.permission)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// server/objectStorage.ts
+var objectStorageClient = new Storage({
+  projectId: process.env.GCP_PROJECT_ID
+});
+var ObjectNotFoundError = class _ObjectNotFoundError extends Error {
+  constructor() {
+    super("Object not found");
+    this.name = "ObjectNotFoundError";
+    Object.setPrototypeOf(this, _ObjectNotFoundError.prototype);
+  }
+};
+var ObjectStorageService = class {
+  constructor() {
+  }
+  // Gets the public object search paths.
+  getPublicObjectSearchPaths() {
+    const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
+    const paths = Array.from(
+      new Set(
+        pathsStr.split(",").map((path3) => path3.trim()).filter((path3) => path3.length > 0)
+      )
+    );
+    if (paths.length === 0) {
+      throw new Error(
+        "PUBLIC_OBJECT_SEARCH_PATHS not set. Set this environment variable with comma-separated GCS paths (e.g., gs://bucket-name/public)"
+      );
+    }
+    return paths;
+  }
+  // Gets the private object directory.
+  getPrivateObjectDir() {
+    const dir = process.env.PRIVATE_OBJECT_DIR || "";
+    if (!dir) {
+      throw new Error(
+        "PRIVATE_OBJECT_DIR not set. Set this environment variable with a GCS path (e.g., gs://bucket-name/private)"
+      );
+    }
+    return dir;
+  }
+  // Search for a public object from the search paths.
+  async searchPublicObject(filePath) {
+    for (const searchPath of this.getPublicObjectSearchPaths()) {
+      const fullPath = `${searchPath}/${filePath}`;
+      const file = await this.getObjectEntityFileFromGsPath(fullPath);
+      const [exists] = await file.exists();
+      if (exists) {
+        return file;
+      }
+    }
+    return null;
+  }
+  // Gets a private object file.
+  async getPrivateObject(filePath) {
+    const privateDir = this.getPrivateObjectDir();
+    const fullPath = `${privateDir}/${filePath}`;
+    return await this.getObjectEntityFileFromGsPath(fullPath);
+  }
+  // Converts a gs:// path to a File object
+  async getObjectEntityFileFromGsPath(gsPath) {
+    const path3 = gsPath.replace(/^gs:\/\//, "");
+    const parts = path3.split("/");
+    const bucketName = parts[0];
+    const filePath = parts.slice(1).join("/");
+    const bucket = objectStorageClient.bucket(bucketName);
+    return bucket.file(filePath);
+  }
+  // Gets the object entity file from path
+  async getObjectEntityFile(path3) {
+    const cleanPath = path3.replace(/^\/objects\//, "");
+    const publicFile = await this.searchPublicObject(cleanPath);
+    if (publicFile) {
+      return publicFile;
+    }
+    try {
+      const privateFile = await this.getPrivateObject(cleanPath);
+      const [exists] = await privateFile.exists();
+      if (exists) {
+        return privateFile;
+      }
+    } catch (error) {
+    }
+    throw new ObjectNotFoundError();
+  }
+  // Normalizes an object entity path
+  normalizeObjectEntityPath(path3) {
+    if (path3.startsWith("gs://")) {
+      return path3;
+    }
+    if (path3.startsWith("/objects/")) {
+      return path3.replace("/objects/", "");
+    }
+    if (path3.startsWith("http://") || path3.startsWith("https://")) {
+      const url = new URL(path3);
+      return url.pathname.replace(/^\/objects\//, "");
+    }
+    return path3;
+  }
+  // Gets a presigned upload URL for uploading objects
+  async getObjectEntityUploadURL() {
+    const privateDir = this.getPrivateObjectDir();
+    const fileName = `${randomUUID()}`;
+    const fullPath = `${privateDir}/${fileName}`;
+    const file = await this.getObjectEntityFileFromGsPath(fullPath);
+    const [url] = await file.getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + 15 * 60 * 1e3,
+      // 15 minutes
+      contentType: "application/octet-stream"
+    });
+    return url;
+  }
+  // Downloads an object to the response
+  async downloadObject(file, res) {
+    const [metadata] = await file.getMetadata();
+    const contentType = metadata.contentType || "application/octet-stream";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=31536000");
+    const stream = file.createReadStream();
+    stream.pipe(res);
+  }
+  // Checks if the user can access the object
+  async canAccessObjectEntity(options) {
+    try {
+      const policy = await getObjectAclPolicy(options.objectFile);
+      if (!policy) {
+        const filePath = `gs://${options.objectFile.bucket.name}/${options.objectFile.name}`;
+        const publicPaths = this.getPublicObjectSearchPaths();
+        return publicPaths.some((path3) => filePath.startsWith(path3));
+      }
+      return canAccessObject(policy, options.userId);
+    } catch (error) {
+      console.error("Error checking access:", error);
+      return false;
+    }
+  }
+  // Sets the object ACL policy and returns the public URL
+  async trySetObjectEntityAclPolicy(path3, policy) {
+    const normalizedPath = this.normalizeObjectEntityPath(path3);
+    const file = await this.getObjectEntityFile(normalizedPath);
+    await setObjectAclPolicy(file, policy);
+    if (policy.visibility === "public") {
+      await file.makePublic();
+    }
+    return `/objects/${file.bucket.name}/${file.name}`;
+  }
+};
+
+// server/routes.ts
+var TESTING_EMAILS = ["demo@dealerdelight.com"];
 function requireAdmin(req, res, next) {
-  const sessionToken = req.headers.authorization?.replace("Bearer ", "");
-  if (!sessionToken || !sessions.has(sessionToken)) {
+  if (!req.session?.isAdmin) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   next();
 }
 function requireAuth(req, res, next) {
-  const sessionToken = req.headers.authorization?.replace("Bearer ", "");
-  if (!sessionToken || !userSessions.has(sessionToken)) {
+  if (!req.session?.userId) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  req.userId = userSessions.get(sessionToken);
+  req.userId = req.session.userId;
   next();
-}
-function generateToken() {
-  return randomBytes(32).toString("hex");
 }
 function generateSlug(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -272,9 +593,14 @@ async function registerRoutes(app2) {
       return res.status(500).json({ error: "Server configuration error" });
     }
     if (password === ADMIN_PASSWORD) {
-      const token = generateToken();
-      sessions.add(token);
-      res.json({ token });
+      req.session.isAdmin = true;
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        res.json({ success: true });
+      });
     } else {
       res.status(401).json({ error: "Invalid password" });
     }
@@ -295,7 +621,7 @@ async function registerRoutes(app2) {
       const dealership = await storage.createDealership({
         name: dealershipName,
         slug,
-        templateStyle: "classic",
+        templateStyle: "",
         trialStartsAt,
         trialEndsAt,
         subscriptionStatus: "trial"
@@ -305,25 +631,31 @@ async function registerRoutes(app2) {
         passwordHash,
         dealershipId: dealership.id
       });
-      const token = generateToken();
-      userSessions.set(token, user.id);
-      try {
-        await sendWelcomeEmail({
-          email: user.email,
-          dealershipName: dealership.name,
-          trialEndsAt: dealership.trialEndsAt
-        });
-      } catch (emailError) {
-        console.error("Failed to send welcome email:", emailError);
+      req.session.userId = user.id;
+      if (user.email) {
+        try {
+          await sendWelcomeEmail({
+            email: user.email,
+            dealershipName: dealership.name,
+            trialEndsAt: dealership.trialEndsAt
+          });
+        } catch (emailError) {
+          console.error("Failed to send welcome email:", emailError);
+        }
       }
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          dealershipId: user.dealershipId
-        },
-        dealership
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        res.json({
+          user: {
+            id: user.id,
+            email: user.email,
+            dealershipId: user.dealershipId
+          },
+          dealership
+        });
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -347,16 +679,20 @@ async function registerRoutes(app2) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
       const dealership = user.dealershipId ? await storage.getDealership(user.dealershipId) : null;
-      const token = generateToken();
-      userSessions.set(token, user.id);
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          dealershipId: user.dealershipId
-        },
-        dealership
+      req.session.userId = user.id;
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        res.json({
+          user: {
+            id: user.id,
+            email: user.email,
+            dealershipId: user.dealershipId
+          },
+          dealership
+        });
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -364,11 +700,14 @@ async function registerRoutes(app2) {
     }
   });
   app2.post("/api/auth/logout", requireAuth, (req, res) => {
-    const sessionToken = req.headers.authorization?.replace("Bearer ", "");
-    if (sessionToken) {
-      userSessions.delete(sessionToken);
-    }
-    res.json({ success: true });
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Session destroy error:", err);
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.clearCookie("dealerdelight.sid");
+      res.json({ success: true });
+    });
   });
   app2.get("/api/auth/me", requireAuth, async (req, res) => {
     try {
@@ -378,13 +717,15 @@ async function registerRoutes(app2) {
         return res.status(404).json({ error: "User not found" });
       }
       const dealership = user.dealershipId ? await storage.getDealership(user.dealershipId) : null;
+      const vehicleCount = dealership ? await storage.getVehicleCount(dealership.id) : 0;
       res.json({
         user: {
           id: user.id,
           email: user.email,
           dealershipId: user.dealershipId
         },
-        dealership
+        dealership,
+        vehicleCount
       });
     } catch (error) {
       console.error("Get current user error:", error);
@@ -438,6 +779,321 @@ async function registerRoutes(app2) {
       res.status(500).json({ error: "Failed to update dealership" });
     }
   });
+  app2.patch("/api/dealerships/:id/business-details", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const dealershipId = req.params.id;
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== dealershipId) {
+        return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
+      }
+      const validatedData = insertBusinessDetailsSchema.parse(req.body);
+      const dealership = await storage.updateDealership(dealershipId, validatedData);
+      res.json(dealership);
+    } catch (error) {
+      console.error("Error updating business details:", error);
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Failed to update business details"
+      });
+    }
+  });
+  app2.patch("/api/dealerships/:id/logo", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const dealershipId = req.params.id;
+      const { logoUrl } = req.body;
+      if (!logoUrl || logoUrl.trim() === "") {
+        return res.status(400).json({ error: "Logo URL is required and cannot be empty" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== dealershipId) {
+        return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
+      }
+      const dealership = await storage.updateDealership(dealershipId, { logoUrl });
+      res.json(dealership);
+    } catch (error) {
+      console.error("Error updating logo:", error);
+      res.status(500).json({ error: "Failed to update logo" });
+    }
+  });
+  app2.post("/api/objects/upload", requireAuth, async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error("Error getting upload URL:", error);
+      res.status(500).json({ error: "Failed to get upload URL" });
+    }
+  });
+  app2.patch("/api/dealership/logo/upload", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const { logoUrl } = req.body;
+      if (!logoUrl) {
+        return res.status(400).json({ error: "logoUrl is required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || !user.dealershipId) {
+        return res.status(403).json({ error: "User does not have a dealership" });
+      }
+      const objectStorageService = new ObjectStorageService();
+      try {
+        const objectFile = await objectStorageService.getObjectEntityFile(
+          objectStorageService.normalizeObjectEntityPath(logoUrl)
+        );
+        const [metadata] = await objectFile.getMetadata();
+        const contentType = metadata.contentType || "";
+        const fileSize = Number(metadata.size) || 0;
+        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"];
+        if (!allowedTypes.includes(contentType.toLowerCase())) {
+          return res.status(400).json({
+            error: "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) are allowed."
+          });
+        }
+        const maxSize = 5 * 1024 * 1024;
+        if (fileSize > maxSize) {
+          return res.status(400).json({
+            error: `File size exceeds maximum of ${(maxSize / 1024 / 1024).toFixed(1)}MB`
+          });
+        }
+      } catch (validateError) {
+        console.error("File validation error:", validateError);
+        return res.status(400).json({ error: "Invalid or inaccessible file" });
+      }
+      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        logoUrl,
+        {
+          owner: userId,
+          visibility: "public"
+        }
+      );
+      const dealership = await storage.updateDealership(user.dealershipId, {
+        logoUrl: objectPath
+      });
+      res.json({
+        objectPath,
+        dealership
+      });
+    } catch (error) {
+      console.error("Error saving uploaded logo:", error);
+      res.status(500).json({ error: "Failed to save logo" });
+    }
+  });
+  app2.patch("/api/dealerships/:id/tagline", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const { id } = req.params;
+      const { tagline } = req.body;
+      const user = await storage.getUser(userId);
+      if (!user || !user.dealershipId) {
+        return res.status(403).json({ error: "User does not have a dealership" });
+      }
+      if (user.dealershipId !== id) {
+        return res.status(403).json({ error: "Unauthorized to update this dealership" });
+      }
+      const dealership = await storage.updateDealership(id, { tagline });
+      res.json({ dealership });
+    } catch (error) {
+      console.error("Error updating tagline:", error);
+      res.status(500).json({ error: "Failed to update tagline" });
+    }
+  });
+  app2.patch("/api/dealership/hero-image/upload", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const { heroImageUrl } = req.body;
+      if (!heroImageUrl) {
+        return res.status(400).json({ error: "heroImageUrl is required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || !user.dealershipId) {
+        return res.status(403).json({ error: "User does not have a dealership" });
+      }
+      const objectStorageService = new ObjectStorageService();
+      try {
+        const objectFile = await objectStorageService.getObjectEntityFile(
+          objectStorageService.normalizeObjectEntityPath(heroImageUrl)
+        );
+        const [metadata] = await objectFile.getMetadata();
+        const contentType = metadata.contentType || "";
+        const fileSize = Number(metadata.size) || 0;
+        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"];
+        if (!allowedTypes.includes(contentType.toLowerCase())) {
+          return res.status(400).json({
+            error: "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) are allowed."
+          });
+        }
+        const maxSize = 10 * 1024 * 1024;
+        if (fileSize > maxSize) {
+          return res.status(400).json({
+            error: `File size exceeds maximum of ${(maxSize / 1024 / 1024).toFixed(1)}MB`
+          });
+        }
+      } catch (validateError) {
+        console.error("File validation error:", validateError);
+        return res.status(400).json({ error: "Invalid or inaccessible file" });
+      }
+      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        heroImageUrl,
+        {
+          owner: userId,
+          visibility: "public"
+        }
+      );
+      const dealership = await storage.updateDealership(user.dealershipId, {
+        heroImageUrl: objectPath
+      });
+      res.json({
+        objectPath,
+        dealership
+      });
+    } catch (error) {
+      console.error("Error saving uploaded hero image:", error);
+      res.status(500).json({ error: "Failed to save hero image" });
+    }
+  });
+  app2.get("/objects/:objectPath(*)", async (req, res) => {
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId: req.userId
+      });
+      if (!canAccess) {
+        return res.sendStatus(401);
+      }
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error accessing object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
+    }
+  });
+  app2.post("/api/dealerships/:id/vehicles", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const dealershipId = req.params.id;
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== dealershipId) {
+        return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
+      }
+      const validatedData = insertVehicleSchema.parse(req.body);
+      if (validatedData.imageUrl) {
+        const objectStorageService = new ObjectStorageService();
+        try {
+          const permanentUrl = await objectStorageService.trySetObjectEntityAclPolicy(
+            validatedData.imageUrl,
+            {
+              owner: userId,
+              visibility: "public"
+            }
+          );
+          validatedData.imageUrl = permanentUrl;
+        } catch (error) {
+          console.error("Error converting vehicle image URL:", error);
+          validatedData.imageUrl = "";
+        }
+      }
+      const vehicle = await storage.createVehicle(dealershipId, validatedData);
+      res.json(vehicle);
+    } catch (error) {
+      console.error("Error creating vehicle:", error);
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Failed to create vehicle"
+      });
+    }
+  });
+  app2.get("/api/dealerships/:id/vehicles", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const dealershipId = req.params.id;
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== dealershipId) {
+        return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
+      }
+      const vehicles2 = await storage.getVehiclesByDealership(dealershipId);
+      res.json(vehicles2);
+    } catch (error) {
+      console.error("Error fetching vehicles:", error);
+      res.status(500).json({ error: "Failed to fetch vehicles" });
+    }
+  });
+  app2.get("/api/dealerships/:id/inquiries", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const dealershipId = req.params.id;
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== dealershipId) {
+        return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
+      }
+      const inquiries2 = await storage.getInquiriesByDealership(dealershipId);
+      res.json(inquiries2);
+    } catch (error) {
+      console.error("Error fetching inquiries:", error);
+      res.status(500).json({ error: "Failed to fetch inquiries" });
+    }
+  });
+  app2.patch("/api/vehicles/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const vehicleId = req.params.id;
+      const vehicle = await storage.getVehicleById(vehicleId);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== vehicle.dealershipId) {
+        return res.status(403).json({ error: "Forbidden: You don't own this vehicle" });
+      }
+      const validatedData = insertVehicleSchema.partial().parse(req.body);
+      if (validatedData.imageUrl && validatedData.imageUrl !== vehicle.imageUrl) {
+        const objectStorageService = new ObjectStorageService();
+        try {
+          const permanentUrl = await objectStorageService.trySetObjectEntityAclPolicy(
+            validatedData.imageUrl,
+            {
+              owner: userId,
+              visibility: "public"
+            }
+          );
+          validatedData.imageUrl = permanentUrl;
+        } catch (error) {
+          console.error("Error converting vehicle image URL:", error);
+          delete validatedData.imageUrl;
+        }
+      }
+      const updatedVehicle = await storage.updateVehicle(vehicleId, validatedData);
+      res.json(updatedVehicle);
+    } catch (error) {
+      console.error("Error updating vehicle:", error);
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Failed to update vehicle"
+      });
+    }
+  });
+  app2.delete("/api/vehicles/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const vehicleId = req.params.id;
+      const vehicle = await storage.getVehicleById(vehicleId);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== vehicle.dealershipId) {
+        return res.status(403).json({ error: "Forbidden: You don't own this vehicle" });
+      }
+      await storage.deleteVehicle(vehicleId);
+      res.json({ success: true, message: "Vehicle deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting vehicle:", error);
+      res.status(500).json({ error: "Failed to delete vehicle" });
+    }
+  });
   app2.get("/api/leads", requireAdmin, async (req, res) => {
     try {
       const leads2 = await storage.getLeads();
@@ -464,6 +1120,86 @@ async function registerRoutes(app2) {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
         details: error
+      });
+    }
+  });
+  app2.get("/api/public/dealerships/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const dealership = await storage.getDealershipBySlug(slug);
+      if (!dealership) {
+        return res.status(404).json({ error: "Dealership not found" });
+      }
+      res.json(dealership);
+    } catch (error) {
+      console.error("Error fetching dealership:", error);
+      res.status(500).json({ error: "Failed to fetch dealership" });
+    }
+  });
+  app2.get("/api/public/dealerships/:slug/vehicles", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const dealership = await storage.getDealershipBySlug(slug);
+      if (!dealership) {
+        return res.status(404).json({ error: "Dealership not found" });
+      }
+      const vehicles2 = await storage.getVehiclesByDealership(dealership.id);
+      res.json(vehicles2);
+    } catch (error) {
+      console.error("Error fetching vehicles:", error);
+      res.status(500).json({ error: "Failed to fetch vehicles" });
+    }
+  });
+  app2.get("/api/public/vehicles/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const vehicle = await storage.getVehicleById(id);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+      res.json(vehicle);
+    } catch (error) {
+      console.error("Error fetching vehicle:", error);
+      res.status(500).json({ error: "Failed to fetch vehicle" });
+    }
+  });
+  app2.post("/api/public/dealerships/:slug/inquiries", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const dealership = await storage.getDealershipBySlug(slug);
+      if (!dealership) {
+        return res.status(404).json({ error: "Dealership not found" });
+      }
+      const validatedData = insertInquirySchema.parse(req.body);
+      let vehicleTitle;
+      if (validatedData.vehicleId) {
+        const vehicle = await storage.getVehicleById(validatedData.vehicleId);
+        if (vehicle) {
+          vehicleTitle = vehicle.title;
+        }
+      }
+      const inquiry = await storage.createInquiry(dealership.id, validatedData);
+      const dealerUser = await storage.getUserByDealershipId(dealership.id);
+      if (dealerUser?.email) {
+        try {
+          await sendInquiryNotification({
+            dealerEmail: dealerUser.email,
+            dealershipName: dealership.name,
+            customerName: validatedData.customerName,
+            customerEmail: validatedData.customerEmail,
+            customerPhone: validatedData.customerPhone,
+            message: validatedData.message,
+            vehicleTitle
+          });
+        } catch (emailError) {
+          console.error("Failed to send inquiry notification email:", emailError);
+        }
+      }
+      res.json({ success: true, inquiry });
+    } catch (error) {
+      console.error("Error creating inquiry:", error);
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "Failed to submit inquiry"
       });
     }
   });
@@ -719,10 +1455,37 @@ async function runMigrations() {
   }
 }
 
+// server/session.ts
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+var PgSession = connectPgSimple(session);
+var sessionMiddleware = session({
+  store: new PgSession({
+    pool,
+    tableName: "session",
+    createTableIfMissing: false
+    // We'll manage this via migrations
+  }),
+  secret: process.env.SESSION_SECRET || "dev-secret-change-in-production",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
+    // Use secure cookies in production
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1e3,
+    // 30 days
+    sameSite: "lax"
+  },
+  name: "dealerdelight.sid"
+  // Custom session cookie name
+});
+
 // server/index.ts
 var app = express2();
 app.use(express2.json());
 app.use(express2.urlencoded({ extended: false }));
+app.use(sessionMiddleware);
 app.use((req, res, next) => {
   if (req.path.startsWith("/api") || req.path === "/sitemap.xml" || req.path === "/robots.txt" || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|map|xml)$/)) {
     return next();
