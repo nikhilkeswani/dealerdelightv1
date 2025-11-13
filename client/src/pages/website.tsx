@@ -180,8 +180,8 @@ export default function Website() {
       setIsUploadingHero(true);
 
       // Get upload URL
-      const uploadResponse = await apiRequest('POST', '/api/objects/upload', {}) as any;
-      const { uploadURL } = uploadResponse;
+      const uploadResponse = await apiRequest('POST', '/api/objects/upload', {});
+      const { uploadURL } = await uploadResponse.json();
 
       // Upload file to object storage
       const uploadResult = await fetch(uploadURL, {
@@ -199,9 +199,10 @@ export default function Website() {
       // Save hero image with ACL
       const saveResponse = await apiRequest('PATCH', '/api/dealership/hero-image/upload', {
         heroImageUrl: uploadURL,
-      }) as any;
+      });
+      const { objectPath } = await saveResponse.json();
 
-      setHeroImagePreview(saveResponse.objectPath);
+      setHeroImagePreview(objectPath);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
 
       toast({
