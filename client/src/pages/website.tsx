@@ -121,7 +121,7 @@ export default function Website() {
 
     setIsSavingTagline(true);
     try {
-      await apiRequest(`/api/dealerships/${data.dealership.id}/tagline`, 'PATCH', {
+      await apiRequest('PATCH', `/api/dealerships/${data.dealership.id}/tagline`, {
         tagline,
       });
 
@@ -180,7 +180,7 @@ export default function Website() {
       setIsUploadingHero(true);
 
       // Get upload URL
-      const uploadResponse = await apiRequest('/api/objects/upload', 'POST', {}) as any;
+      const uploadResponse = await apiRequest('POST', '/api/objects/upload', {}) as any;
       const { uploadURL } = uploadResponse;
 
       // Upload file to object storage
@@ -197,7 +197,7 @@ export default function Website() {
       }
 
       // Save hero image with ACL
-      const saveResponse = await apiRequest('/api/dealership/hero-image/upload', 'PATCH', {
+      const saveResponse = await apiRequest('PATCH', '/api/dealership/hero-image/upload', {
         heroImageUrl: uploadURL,
       }) as any;
 
