@@ -3,10 +3,14 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { injectMetaTags } from "./meta-tags";
 import { runMigrations } from "./migrate";
+import { sessionMiddleware } from "./session";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Session middleware - must be before routes
+app.use(sessionMiddleware);
 
 // Meta tag injection middleware - buffers HTML responses to inject meta tags
 app.use((req, res, next) => {

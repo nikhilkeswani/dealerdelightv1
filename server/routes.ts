@@ -3,44 +3,29 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertLeadSchema, insertUserSchema, insertBusinessDetailsSchema, insertVehicleSchema, insertInquirySchema } from "@shared/schema";
 import { sendLeadNotification, sendWelcomeEmail, sendInquiryNotification } from "./email";
-import { randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-
-// Simple in-memory session storage (in production, use Redis or database)
-const sessions = new Set<string>();
-const userSessions = new Map<string, string>(); // token -> userId
 
 // Testing emails that bypass trial restrictions
 const TESTING_EMAILS = ['demo@dealerdelight.com'];
 
 // Middleware to check admin authentication
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const sessionToken = req.headers.authorization?.replace("Bearer ", "");
-  
-  if (!sessionToken || !sessions.has(sessionToken)) {
+  if (!req.session?.isAdmin) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  
   next();
 }
 
 // Middleware to check user authentication
 function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const sessionToken = req.headers.authorization?.replace("Bearer ", "");
-  
-  if (!sessionToken || !userSessions.has(sessionToken)) {
+  if (!req.session?.userId) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   
-  // Attach userId to request
-  (req as any).userId = userSessions.get(sessionToken);
+  // Attach userId to request for convenience
+  (req as any).userId = req.session.userId;
   next();
-}
-
-// Generate a cryptographically secure session token
-function generateToken(): string {
-  return randomBytes(32).toString('hex');
 }
 
 // Generate URL-friendly slug from dealership name
@@ -63,9 +48,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     if (password === ADMIN_PASSWORD) {
-      const token = generateToken();
-      sessions.add(token);
-      res.json({ token });
+      req.session.isAdmin = true;
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        res.json({ success: true });
+      });
     } else {
       res.status(401).json({ error: "Invalid password" });
     }
@@ -111,9 +101,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dealershipId: dealership.id,
       });
       
-      // Create session token
-      const token = generateToken();
-      userSessions.set(token, user.id);
+      // Create session
+      req.session.userId = user.id;
       
       // Send welcome email (don't block on this)
       if (user.email) {
@@ -129,15 +118,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Return user data without password hash
-      res.json({ 
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          dealershipId: user.dealershipId,
-        },
-        dealership
+      // Save session and return user data
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        res.json({ 
+          user: {
+            id: user.id,
+            email: user.email,
+            dealershipId: user.dealershipId,
+          },
+          dealership
+        });
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -172,17 +166,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dealership = user.dealershipId ? await storage.getDealership(user.dealershipId) : null;
       
       // Create session
-      const token = generateToken();
-      userSessions.set(token, user.id);
+      req.session.userId = user.id;
       
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          dealershipId: user.dealershipId,
-        },
-        dealership
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session error" });
+        }
+        res.json({
+          user: {
+            id: user.id,
+            email: user.email,
+            dealershipId: user.dealershipId,
+          },
+          dealership
+        });
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -192,11 +190,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // POST /api/auth/logout - User logout
   app.post("/api/auth/logout", requireAuth, (req, res) => {
-    const sessionToken = req.headers.authorization?.replace("Bearer ", "");
-    if (sessionToken) {
-      userSessions.delete(sessionToken);
-    }
-    res.json({ success: true });
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Session destroy error:", err);
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.clearCookie('dealerdelight.sid');
+      res.json({ success: true });
+    });
   });
 
   // GET /api/auth/me - Get current user and dealership

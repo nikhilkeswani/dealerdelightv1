@@ -68,6 +68,13 @@ export const inquiries = pgTable("inquiries", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Session table for connect-pg-simple
+export const sessions = pgTable("session", {
+  sid: varchar("sid").primaryKey(),
+  sess: text("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+});
+
 export const insertDealershipSchema = createInsertSchema(dealerships).omit({
   id: true,
   createdAt: true,
@@ -127,3 +134,4 @@ export type Vehicle = typeof vehicles.$inferSelect;
 export type InsertInquiry = z.infer<typeof insertInquirySchema>;
 export type Inquiry = typeof inquiries.$inferSelect;
 export type InsertBusinessDetails = z.infer<typeof insertBusinessDetailsSchema>;
+export type Session = typeof sessions.$inferSelect;

@@ -56,17 +56,13 @@ export function AppSidebar() {
 
   const handleLogout = async () => {
     try {
-      const token = localStorage.getItem("auth_token");
       await fetch("/api/auth/logout", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include",
       });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem("auth_token");
       window.location.href = "/";
     }
   };

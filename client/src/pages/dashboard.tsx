@@ -38,7 +38,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (error) {
       // Not authenticated, redirect to login
-      localStorage.removeItem("auth_token");
       setLocation("/login");
     }
   }, [error, setLocation]);
@@ -112,17 +111,13 @@ export default function Dashboard() {
                 data-testid="button-logout"
                 onClick={async () => {
                   try {
-                    const token = localStorage.getItem("auth_token");
                     await fetch("/api/auth/logout", {
                       method: "POST",
-                      headers: {
-                        Authorization: `Bearer ${token}`,
-                      },
+                      credentials: "include",
                     });
                   } catch (error) {
                     console.error("Logout error:", error);
                   } finally {
-                    localStorage.removeItem("auth_token");
                     setLocation("/");
                   }
                 }}

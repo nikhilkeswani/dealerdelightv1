@@ -34,12 +34,10 @@ export default function Login() {
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
       const response = await apiRequest("POST", "/api/auth/login", data);
-      return await response.json() as { token: string; user: any; dealership: any };
+      return await response.json() as { user: any; dealership: any };
     },
-    onSuccess: (data) => {
-      // Store auth token
-      localStorage.setItem("auth_token", data.token);
-      // Redirect to dashboard
+    onSuccess: () => {
+      // Session is now handled via cookies, just redirect
       setLocation("/dashboard");
     },
     onError: (error: any) => {

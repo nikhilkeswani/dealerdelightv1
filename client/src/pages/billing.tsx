@@ -49,7 +49,6 @@ export default function Billing() {
 
   useEffect(() => {
     if (error) {
-      localStorage.removeItem("auth_token");
       setLocation("/login");
     }
   }, [error, setLocation]);

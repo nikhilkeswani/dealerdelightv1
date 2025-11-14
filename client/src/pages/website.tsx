@@ -70,7 +70,6 @@ export default function Website() {
 
   useEffect(() => {
     if (error) {
-      localStorage.removeItem("auth_token");
       setLocation("/login");
     }
   }, [error, setLocation]);
@@ -89,20 +88,11 @@ export default function Website() {
 
   const updateTemplateMutation = useMutation({
     mutationFn: async (templateStyle: string) => {
-      const token = localStorage.getItem("auth_token");
-      const response = await fetch(`/api/dealerships/${data?.dealership?.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ templateStyle }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update template");
-      }
-
+      const response = await apiRequest(
+        "PATCH",
+        `/api/dealerships/${data?.dealership?.id}`,
+        { templateStyle }
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -131,7 +121,7 @@ export default function Website() {
 
     setIsSavingTagline(true);
     try {
-      await apiRequest(`/api/dealerships/${data.dealership.id}/tagline`, 'PATCH', {
+      await apiRequest('PATCH', `/api/dealerships/${data.dealership.id}/tagline`, {
         tagline,
       });
 
@@ -190,8 +180,8 @@ export default function Website() {
       setIsUploadingHero(true);
 
       // Get upload URL
-      const uploadResponse = await apiRequest('/api/objects/upload', 'POST', {}) as any;
-      const { uploadURL } = uploadResponse;
+      const uploadResponse = await apiRequest('POST', '/api/objects/upload', {});
+      const { uploadURL } = await uploadResponse.json();
 
       // Upload file to object storage
       const uploadResult = await fetch(uploadURL, {
@@ -207,11 +197,12 @@ export default function Website() {
       }
 
       // Save hero image with ACL
-      const saveResponse = await apiRequest('/api/dealership/hero-image/upload', 'PATCH', {
+      const saveResponse = await apiRequest('PATCH', '/api/dealership/hero-image/upload', {
         heroImageUrl: uploadURL,
-      }) as any;
+      });
+      const { objectPath } = await saveResponse.json();
 
-      setHeroImagePreview(saveResponse.objectPath);
+      setHeroImagePreview(objectPath);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
 
       toast({
