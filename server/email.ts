@@ -1,16 +1,14 @@
 import { Resend } from 'resend';
 
 // Initialize Resend client with API key from environment
+// Returns null if email is not configured (allows app to run without email)
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL;
 
-  if (!apiKey) {
-    throw new Error('RESEND_API_KEY environment variable is not set');
-  }
-
-  if (!fromEmail) {
-    throw new Error('RESEND_FROM_EMAIL environment variable is not set');
+  if (!apiKey || !fromEmail) {
+    console.warn('⚠️  Email not configured: RESEND_API_KEY or RESEND_FROM_EMAIL not set. Email functionality disabled.');
+    return null;
   }
 
   return {
@@ -28,7 +26,12 @@ export async function sendLeadNotification(lead: {
   dealerWebsite?: string;
   message?: string;
 }) {
-  const { client, fromEmail } = getResendClient();
+  const resendClient = getResendClient();
+  if (!resendClient) {
+    console.log('Skipping email notification (email not configured)');
+    return;
+  }
+  const { client, fromEmail } = resendClient;
 
   console.log('Sending email notification...');
   console.log('From email:', fromEmail);
@@ -59,7 +62,12 @@ export async function sendWelcomeEmail(user: {
   dealershipName: string;
   trialEndsAt: Date;
 }) {
-  const { client, fromEmail } = getResendClient();
+  const resendClient = getResendClient();
+  if (!resendClient) {
+    console.log('Skipping welcome email (email not configured)');
+    return;
+  }
+  const { client, fromEmail } = resendClient;
 
   console.log('Sending welcome email...');
   console.log('From email:', fromEmail);
@@ -111,7 +119,12 @@ export async function sendInquiryNotification(inquiry: {
   message: string;
   vehicleTitle?: string;
 }) {
-  const { client, fromEmail } = getResendClient();
+  const resendClient = getResendClient();
+  if (!resendClient) {
+    console.log('Skipping inquiry notification email (email not configured)');
+    return;
+  }
+  const { client, fromEmail } = resendClient;
 
   console.log('Sending inquiry notification...');
   console.log('From email:', fromEmail);
