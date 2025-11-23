@@ -234,33 +234,62 @@ export default function Dashboard() {
           <div className="space-y-3 max-w-md mx-auto">
             {setupTasks.map((task, index) => {
               const Icon = task.icon;
+              const isNextTask = !task.completed && (index === 0 || setupTasks[index - 1].completed);
+              
+              // Define click handlers for each task
+              const getClickHandler = () => {
+                if (task.completed) return undefined;
+                switch(task.id) {
+                  case 'template': return () => setLocation('/website');
+                  case 'business': return () => setLocation('/business-details');
+                  case 'logo': return () => setLocation('/upload-logo');
+                  case 'vehicle': return () => setLocation('/add-vehicle');
+                  default: return undefined;
+                }
+              };
+              
+              const clickHandler = getClickHandler();
+              
               return (
                 <div 
                   key={task.id} 
+                  onClick={clickHandler}
                   className={`flex items-center gap-4 p-4 rounded-lg transition-all ${
                     task.completed 
                       ? 'bg-success/5 border border-success/20' 
-                      : 'bg-card border border-border'
+                      : isNextTask
+                        ? 'bg-primary/5 border-2 border-primary/30 cursor-pointer hover:border-primary/50 hover:bg-primary/10'
+                        : 'bg-card border border-border'
                   }`}
                   data-testid={`task-${task.id}`}
                 >
                   <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
                     task.completed 
                       ? 'bg-success/20' 
-                      : 'bg-muted/50'
+                      : isNextTask
+                        ? 'bg-primary/20'
+                        : 'bg-muted/50'
                   }`}>
                     {task.completed ? (
                       <CheckCircle2 className="h-5 w-5 text-success" />
                     ) : (
-                      <span className="text-sm font-bold text-muted-foreground">{index + 1}</span>
+                      <span className={`text-sm font-bold ${isNextTask ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {index + 1}
+                      </span>
                     )}
                   </div>
                   <div className="flex-1">
-                    <span className={`font-medium ${task.completed ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    <span className={`font-medium ${
+                      task.completed 
+                        ? 'text-foreground' 
+                        : isNextTask
+                          ? 'text-primary font-semibold'
+                          : 'text-muted-foreground'
+                    }`}>
                       {task.title}
                     </span>
                   </div>
-                  {!task.completed && task.id === 'template' && (
+                  {isNextTask && !task.completed && (
                     <ArrowRight className="h-5 w-5 text-primary animate-pulse" />
                   )}
                 </div>
@@ -311,118 +340,6 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Primary Action - Choose Template (only if not selected) */}
-      {!hasSelectedTemplate && (
-        <Card 
-          className="border-2 border-primary/30 hover-elevate cursor-pointer transition-all bg-gradient-to-br from-primary/5 to-primary-purple/5"
-          onClick={() => setLocation("/website")}
-          data-testid="card-choose-template-primary"
-        >
-          <CardHeader className="text-center pb-4">
-            <div className="flex justify-center mb-4">
-              <div className="bg-primary/10 rounded-2xl p-6">
-                <Palette className="h-12 w-12 text-primary" />
-              </div>
-            </div>
-            <CardTitle className="text-3xl font-bold gradient-text-blue-purple">Choose Your Template</CardTitle>
-            <CardDescription className="text-lg">
-              Pick a stunning design that represents your dealership
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center">
-            <Button size="lg" className="w-full max-w-md text-lg font-semibold gradient-bg" data-testid="button-choose-template-primary">
-              Browse Templates
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Next Action - Progressive Reveal */}
-      {!isSetupComplete && (
-        <>
-          {/* Business Details Action (show after template selected) */}
-          {hasSelectedTemplate && !hasBusinessDetails && (
-            <Card 
-              className="border-2 border-primary/30 hover-elevate cursor-pointer transition-all bg-gradient-to-br from-primary/5 to-primary-purple/5"
-              onClick={() => setLocation("/business-details")}
-              data-testid="card-add-business-details"
-            >
-              <CardHeader className="text-center pb-4">
-                <div className="flex justify-center mb-4">
-                  <div className="bg-primary/10 rounded-2xl p-6">
-                    <Package className="h-12 w-12 text-primary" />
-                  </div>
-                </div>
-                <CardTitle className="text-3xl font-bold gradient-text-blue-purple">Add Business Details</CardTitle>
-                <CardDescription className="text-lg">
-                  Let customers know where to find you and how to contact you
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <Button size="lg" className="w-full max-w-md text-lg font-semibold gradient-bg" data-testid="button-add-business-details">
-                  Add Details
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Logo Upload Action (show after business details complete) */}
-          {hasSelectedTemplate && hasBusinessDetails && !hasLogo && (
-            <Card 
-              className="border-2 border-primary/30 hover-elevate cursor-pointer transition-all bg-gradient-to-br from-primary/5 to-primary-purple/5"
-              onClick={() => setLocation("/upload-logo")}
-              data-testid="card-upload-logo"
-            >
-              <CardHeader className="text-center pb-4">
-                <div className="flex justify-center mb-4">
-                  <div className="bg-primary/10 rounded-2xl p-6">
-                    <Sparkles className="h-12 w-12 text-primary" />
-                  </div>
-                </div>
-                <CardTitle className="text-3xl font-bold gradient-text-blue-purple">Upload Your Logo</CardTitle>
-                <CardDescription className="text-lg">
-                  Make your website stand out with your dealership logo
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <Button size="lg" className="w-full max-w-md text-lg font-semibold gradient-bg" data-testid="button-upload-logo">
-                  Add Logo
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Add Vehicle Action (show after logo uploaded) */}
-          {hasSelectedTemplate && hasBusinessDetails && hasLogo && !hasVehicle && (
-            <Card 
-              className="border-2 border-primary/30 hover-elevate cursor-pointer transition-all bg-gradient-to-br from-primary/5 to-primary-purple/5"
-              onClick={() => setLocation("/add-vehicle")}
-              data-testid="card-add-first-vehicle"
-            >
-              <CardHeader className="text-center pb-4">
-                <div className="flex justify-center mb-4">
-                  <div className="bg-primary/10 rounded-2xl p-6">
-                    <Package className="h-12 w-12 text-primary" />
-                  </div>
-                </div>
-                <CardTitle className="text-3xl font-bold gradient-text-blue-purple">Add Your First Vehicle</CardTitle>
-                <CardDescription className="text-lg">
-                  Start building your inventory with your first vehicle listing
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <Button size="lg" className="w-full max-w-md text-lg font-semibold gradient-bg" data-testid="button-add-first-vehicle">
-                  Add Vehicle
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
 
       {/* Quick Actions Grid - Only show template selection if available */}
       {hasSelectedTemplate && (

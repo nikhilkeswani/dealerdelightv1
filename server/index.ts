@@ -1,13 +1,72 @@
+// Load environment variables first, before any other imports
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Explicitly load .env file
+const result = config({ path: resolve(process.cwd(), '.env') });
+if (result.error) {
+  console.error('Error loading .env file:', result.error);
+} else {
+  console.log('✓ Environment variables loaded from .env');
+  console.log('✓ DATABASE_URL is', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+}
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { injectMetaTags } from "./meta-tags";
 import { runMigrations } from "./migrate";
 import { sessionMiddleware } from "./session";
+import helmet from "helmet";
+import cors from "cors";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Security headers - helmet must be early in middleware chain
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // unsafe-eval needed for Vite in dev
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow images from GCS and data URLs
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Needed for some external resources
+}));
+
+// CORS configuration - restrict to your domains in production
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5000', 'http://localhost:3000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Allow cookies
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.use(express.json({ limit: '10mb' })); // Limit JSON payload size
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Session middleware - must be before routes
 app.use(sessionMiddleware);
@@ -144,11 +203,11 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  
+  // Use localhost for Windows compatibility, 0.0.0.0 for production
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+  
+  server.listen(port, host, () => {
+    log(`serving on http://${host}:${port}`);
   });
 })();

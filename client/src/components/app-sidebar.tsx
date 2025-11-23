@@ -1,4 +1,4 @@
-import { LayoutDashboard, Palette, Package, TrendingUp, Settings, CreditCard, LogOut } from "lucide-react";
+import { LayoutDashboard, Palette, Package, TrendingUp, Settings, CreditCard, LogOut, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -24,6 +24,11 @@ const navigationItems = [
     title: "Website",
     url: "/website",
     icon: Palette,
+  },
+  {
+    title: "Customize Homepage",
+    url: "/customize-homepage",
+    icon: Sparkles,
   },
   {
     title: "Inventory",

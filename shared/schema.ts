@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -8,13 +8,40 @@ export const dealerships = pgTable("dealerships", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   templateStyle: text("template_style").notNull().default(''),
+  
+  // Contact Information
   address: text("address"),
   phone: text("phone"),
   hours: text("hours"),
   about: text("about"),
   tagline: text("tagline"),
+  
+  // Media
   logoUrl: text("logo_url"),
   heroImageUrl: text("hero_image_url"),
+  
+  // Homepage Stats (customizable)
+  statsYearsInBusiness: integer("stats_years_in_business"),
+  statsTotalClients: integer("stats_total_clients"),
+  statsRating: text("stats_rating"),
+  statsShowVehicleCount: text("stats_show_vehicle_count").default('true'),
+  
+  // Services Section (customizable - stored as JSON)
+  servicesEnabled: text("services_enabled").default('true'),
+  servicesData: jsonb("services_data").$type<{
+    services: Array<{
+      title: string;
+      description: string;
+      icon: string;
+    }>;
+  }>(),
+  
+  // Homepage Sections Visibility
+  showStatsSection: text("show_stats_section").default('true'),
+  showServicesSection: text("show_services_section").default('true'),
+  showAboutSection: text("show_about_section").default('true'),
+  
+  // Subscription & Trial
   trialStartsAt: timestamp("trial_starts_at").notNull().defaultNow(),
   trialEndsAt: timestamp("trial_ends_at").notNull(),
   subscriptionStatus: text("subscription_status").notNull().default('trial'),

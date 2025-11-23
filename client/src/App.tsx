@@ -19,6 +19,7 @@ import Billing from "@/pages/billing";
 import BusinessDetails from "@/pages/business-details";
 import AddVehicle from "@/pages/add-vehicle";
 import UploadLogo from "@/pages/upload-logo";
+import CustomizeHomepage from "@/pages/customize-homepage";
 import PublicDealership from "@/pages/public-dealership";
 import PublicInventory from "@/pages/public-inventory";
 import PublicVehicleDetail from "@/pages/public-vehicle-detail";
@@ -79,6 +80,9 @@ function Router() {
       </Route>
       <Route path="/business-details">
         {() => <AuthenticatedRoute component={BusinessDetails} />}
+      </Route>
+      <Route path="/customize-homepage">
+        {() => <AuthenticatedRoute component={CustomizeHomepage} />}
       </Route>
       <Route path="/add-vehicle">
         {() => <AuthenticatedRoute component={AddVehicle} />}

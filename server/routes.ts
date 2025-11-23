@@ -5,9 +5,42 @@ import { insertLeadSchema, insertUserSchema, insertBusinessDetailsSchema, insert
 import { sendLeadNotification, sendWelcomeEmail, sendInquiryNotification } from "./email";
 import bcrypt from "bcrypt";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import rateLimit from "express-rate-limit";
+import DOMPurify from "isomorphic-dompurify";
 
 // Testing emails that bypass trial restrictions
 const TESTING_EMAILS = ['demo@dealerdelight.com'];
+
+// Rate limiters for different endpoint types
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per window
+  message: "Too many authentication attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // Limit each IP to 3 registrations per hour
+  message: "Too many accounts created. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 API requests per window
+  message: "Too many requests. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Helper function to sanitize user input (XSS protection)
+function sanitizeInput(input: string | undefined | null): string | null {
+  if (!input) return null;
+  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [] }); // Strip all HTML tags
+}
 
 // Middleware to check admin authentication
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -38,7 +71,7 @@ function generateSlug(name: string): string {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/admin/login - Admin login with password
-  app.post("/api/admin/login", (req, res) => {
+  app.post("/api/admin/login", authLimiter, (req, res) => {
     const { password } = req.body;
     const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
     
@@ -62,7 +95,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/auth/register - User registration
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", registrationLimiter, async (req, res) => {
     try {
       const { email, password, dealershipName } = insertUserSchema.parse(req.body);
       
@@ -142,7 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/auth/login - User login
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", authLimiter, async (req, res) => {
     try {
       const { email, password } = req.body;
       
@@ -266,7 +299,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req as any).userId;
       const dealershipId = req.params.id;
-      const { templateStyle, name } = req.body;
+      const { 
+        templateStyle, 
+        name,
+        // Content
+        about,
+        // Stats configuration
+        statsYearsInBusiness,
+        statsTotalClients,
+        statsRating,
+        statsShowVehicleCount,
+        // Services configuration
+        servicesEnabled,
+        servicesData,
+        // Section visibility
+        showStatsSection,
+        showServicesSection,
+        showAboutSection
+      } = req.body;
       
       // Get user to verify ownership
       const user = await storage.getUser(userId);
@@ -274,13 +324,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
       }
       
-      // Update dealership
+      // Update dealership - only include provided fields with validation
       const updateData: any = {};
-      if (templateStyle) updateData.templateStyle = templateStyle;
-      if (name) {
+      if (templateStyle !== undefined) updateData.templateStyle = templateStyle;
+      if (name !== undefined) {
         updateData.name = name;
         updateData.slug = generateSlug(name);
       }
+      
+      // Content fields - validate and sanitize about text
+      if (about !== undefined) {
+        const sanitized = sanitizeInput(about);
+        const trimmedAbout = sanitized?.trim();
+        if (trimmedAbout && trimmedAbout.length < 20) {
+          return res.status(400).json({ error: "About text must be at least 20 characters" });
+        }
+        updateData.about = trimmedAbout || null;
+      }
+      
+      // Stats fields - validate numeric values
+      if (statsYearsInBusiness !== undefined) {
+        if (statsYearsInBusiness !== null && (isNaN(statsYearsInBusiness) || statsYearsInBusiness < 0)) {
+          return res.status(400).json({ error: "Years in business must be a positive number" });
+        }
+        updateData.statsYearsInBusiness = statsYearsInBusiness;
+      }
+      if (statsTotalClients !== undefined) {
+        if (statsTotalClients !== null && (isNaN(statsTotalClients) || statsTotalClients < 0)) {
+          return res.status(400).json({ error: "Total clients must be a positive number" });
+        }
+        updateData.statsTotalClients = statsTotalClients;
+      }
+      if (statsRating !== undefined) {
+        if (statsRating !== null) {
+          const rating = parseFloat(statsRating);
+          if (isNaN(rating) || rating < 0 || rating > 5) {
+            return res.status(400).json({ error: "Rating must be between 0 and 5" });
+          }
+        }
+        updateData.statsRating = statsRating;
+      }
+      if (statsShowVehicleCount !== undefined) updateData.statsShowVehicleCount = statsShowVehicleCount;
+      
+      // Services fields - validate and sanitize services data
+      if (servicesEnabled !== undefined) updateData.servicesEnabled = servicesEnabled;
+      if (servicesData !== undefined) {
+        // Validate and sanitize services structure
+        if (servicesData.services && Array.isArray(servicesData.services)) {
+          const sanitizedServices = servicesData.services.map((service: any) => ({
+            icon: service.icon, // Icon names are safe (from predefined list)
+            title: sanitizeInput(service.title) || '',
+            description: sanitizeInput(service.description) || '',
+          }));
+          
+          const validServices = sanitizedServices.every((service: any) => {
+            const hasTitle = service.title.trim().length > 0;
+            const hasDesc = service.description.trim().length >= 10;
+            return hasTitle && hasDesc;
+          });
+          
+          if (!validServices) {
+            return res.status(400).json({ error: "All services must have a title and description (min 10 characters)" });
+          }
+          
+          updateData.servicesData = { services: sanitizedServices };
+        } else {
+          updateData.servicesData = servicesData;
+        }
+      }
+      
+      // Section visibility
+      if (showStatsSection !== undefined) updateData.showStatsSection = showStatsSection;
+      if (showServicesSection !== undefined) updateData.showServicesSection = showServicesSection;
+      if (showAboutSection !== undefined) updateData.showAboutSection = showAboutSection;
       
       const dealership = await storage.updateDealership(dealershipId, updateData);
       res.json(dealership);
@@ -376,9 +492,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Server-side validation: Verify file exists and check metadata
       try {
-        const objectFile = await objectStorageService.getObjectEntityFile(
-          objectStorageService.normalizeObjectEntityPath(logoUrl)
-        );
+        const normalizedPath = objectStorageService.normalizeObjectEntityPath(logoUrl);
+        
+        // Use getObjectEntityFileFromGsPath for full gs:// paths
+        const objectFile = await objectStorageService.getObjectEntityFileFromGsPath(normalizedPath);
         
         const [metadata] = await objectFile.getMetadata();
         const contentType = metadata.contentType || '';

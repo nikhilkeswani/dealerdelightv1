@@ -96,6 +96,21 @@ export class ObjectStorageService {
     // Remove leading /objects/ if present
     const cleanPath = path.replace(/^\/objects\//, "");
 
+    // If path includes bucket name (e.g., "dealerdelight-private/private/uuid"),
+    // convert to gs:// format and use getObjectEntityFileFromGsPath
+    if (cleanPath.includes('/')) {
+      const pathParts = cleanPath.split('/');
+      // Check if first part looks like a bucket name
+      if (pathParts[0] && (pathParts[0].includes('dealerdelight') || pathParts[0].includes('bucket'))) {
+        const gsPath = `gs://${cleanPath}`;
+        const file = await this.getObjectEntityFileFromGsPath(gsPath);
+        const [exists] = await file.exists();
+        if (exists) {
+          return file;
+        }
+      }
+    }
+
     // First try public search paths
     const publicFile = await this.searchPublicObject(cleanPath);
     if (publicFile) {
@@ -142,11 +157,11 @@ export class ObjectStorageService {
     const file = await this.getObjectEntityFileFromGsPath(fullPath);
 
     // Generate signed URL for upload (valid for 15 minutes)
+    // Don't specify contentType to allow any file type
     const [url] = await file.getSignedUrl({
       version: "v4",
       action: "write",
       expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-      contentType: "application/octet-stream",
     });
 
     return url;
@@ -177,7 +192,11 @@ export class ObjectStorageService {
         const publicPaths = this.getPublicObjectSearchPaths();
         return publicPaths.some((path) => filePath.startsWith(path));
       }
-      return canAccessObject(policy, options.userId);
+      return canAccessObject({
+        userId: options.userId,
+        objectFile: options.objectFile,
+        requestedPermission: ObjectPermission.READ,
+      });
     } catch (error) {
       console.error("Error checking access:", error);
       return false;
@@ -190,7 +209,11 @@ export class ObjectStorageService {
     policy: ObjectAclPolicy
   ): Promise<string> {
     const normalizedPath = this.normalizeObjectEntityPath(path);
-    const file = await this.getObjectEntityFile(normalizedPath);
+    
+    // Use appropriate method based on path format
+    const file = normalizedPath.startsWith('gs://') 
+      ? await this.getObjectEntityFileFromGsPath(normalizedPath)
+      : await this.getObjectEntityFile(normalizedPath);
 
     // Set the ACL policy
     await setObjectAclPolicy(file, policy);

@@ -22,6 +22,8 @@ export default function AddVehicle() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>(""); // For preview display
+  const [gcsPath, setGcsPath] = useState<string>(""); // For form submission
 
   const { data, isLoading } = useQuery<{
     user: { id: string; email: string; dealershipId: string };
@@ -112,8 +114,23 @@ export default function AddVehicle() {
         throw new Error(`Upload failed with status ${uploadToStorageResponse.status}`);
       }
 
-      // Set the image URL in the form
-      form.setValue("imageUrl", uploadURL);
+      // Convert signed URL to GCS path for backend
+      // URL format: https://storage.googleapis.com/bucket-name/path/to/file?X-Goog-Algorithm=...
+      const url = new URL(uploadURL);
+      const pathParts = url.pathname.split('/').filter(p => p); // Remove empty strings
+      const bucketName = pathParts[0]; // First part is bucket name
+      const objectPath = pathParts.slice(1).join('/'); // Rest is object path
+      const gcsPathValue = `gs://${bucketName}/${objectPath}`;
+
+      // Create a public URL for preview (remove query params)
+      const previewUrlValue = `${url.protocol}//${url.host}${url.pathname}`;
+
+      // Store both values
+      setGcsPath(gcsPathValue);
+      setPreviewUrl(previewUrlValue);
+      
+      // Set the GCS path in the form (for submission to backend)
+      form.setValue("imageUrl", gcsPathValue);
 
       toast({
         title: "Success",
@@ -284,10 +301,10 @@ export default function AddVehicle() {
                       <FormLabel>Vehicle Image (optional)</FormLabel>
                       <FormControl>
                         <div className="space-y-3">
-                          {field.value && (
+                          {previewUrl && (
                             <div className="relative w-full h-48 rounded-lg border-2 bg-muted flex items-center justify-center overflow-hidden">
                               <img 
-                                src={field.value} 
+                                src={previewUrl} 
                                 alt="Vehicle preview" 
                                 className="max-w-full max-h-full object-contain"
                                 data-testid="img-vehicle-preview"
@@ -311,7 +328,7 @@ export default function AddVehicle() {
                               data-testid="button-upload-image"
                             >
                               <Upload className="w-4 h-4 mr-2" />
-                              {uploadingImage ? "Uploading..." : (field.value ? "Change Image" : "Upload Image")}
+                              {uploadingImage ? "Uploading..." : (previewUrl ? "Change Image" : "Upload Image")}
                             </Button>
                             <p className="text-sm text-muted-foreground mt-2">
                               JPG, PNG or GIF. Max size 5MB.

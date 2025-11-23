@@ -97,10 +97,18 @@ export function FileUploader({
 
       setUploadProgress(100);
       
+      // Extract the GCS object path from the signed URL
+      // URL format: https://storage.googleapis.com/bucket-name/path/to/file?X-Goog-Algorithm=...
+      const url = new URL(uploadUrl);
+      const pathParts = url.pathname.split('/').filter(p => p); // Remove empty strings
+      const bucketName = pathParts[0]; // First part is bucket name
+      const objectPath = pathParts.slice(1).join('/'); // Rest is object path
+      const gcsPath = `gs://${bucketName}/${objectPath}`;
+      
       // CRITICAL: Wait for completion handler to finish before marking as complete
       // This ensures backend save succeeds before showing success UI
       if (onUploadComplete) {
-        await onUploadComplete(uploadUrl);
+        await onUploadComplete(gcsPath);
       }
       
       setUploadComplete(true);

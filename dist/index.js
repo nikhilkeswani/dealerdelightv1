@@ -5,6 +5,8 @@ var __export = (target, all) => {
 };
 
 // server/index.ts
+import { config as config2 } from "dotenv";
+import { resolve } from "path";
 import express2 from "express";
 
 // server/routes.ts
@@ -27,7 +29,7 @@ __export(schema_exports, {
   vehicles: () => vehicles
 });
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 var dealerships = pgTable("dealerships", {
@@ -35,13 +37,28 @@ var dealerships = pgTable("dealerships", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   templateStyle: text("template_style").notNull().default(""),
+  // Contact Information
   address: text("address"),
   phone: text("phone"),
   hours: text("hours"),
   about: text("about"),
   tagline: text("tagline"),
+  // Media
   logoUrl: text("logo_url"),
   heroImageUrl: text("hero_image_url"),
+  // Homepage Stats (customizable)
+  statsYearsInBusiness: integer("stats_years_in_business"),
+  statsTotalClients: integer("stats_total_clients"),
+  statsRating: text("stats_rating"),
+  statsShowVehicleCount: text("stats_show_vehicle_count").default("true"),
+  // Services Section (customizable - stored as JSON)
+  servicesEnabled: text("services_enabled").default("true"),
+  servicesData: jsonb("services_data").$type(),
+  // Homepage Sections Visibility
+  showStatsSection: text("show_stats_section").default("true"),
+  showServicesSection: text("show_services_section").default("true"),
+  showAboutSection: text("show_about_section").default("true"),
+  // Subscription & Trial
   trialStartsAt: timestamp("trial_starts_at").notNull().defaultNow(),
   trialEndsAt: timestamp("trial_ends_at").notNull(),
   subscriptionStatus: text("subscription_status").notNull().default("trial"),
@@ -139,9 +156,11 @@ var insertBusinessDetailsSchema = z.object({
 });
 
 // server/db.ts
+import { config } from "dotenv";
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
+config();
 neonConfig.webSocketConstructor = ws;
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -208,8 +227,8 @@ var DatabaseStorage = class {
     return await db.select().from(vehicles).where(eq(vehicles.dealershipId, dealershipId)).orderBy(desc(vehicles.createdAt));
   }
   async getVehicleCount(dealershipId) {
-    const result = await db.select({ count: count() }).from(vehicles).where(eq(vehicles.dealershipId, dealershipId));
-    return result[0]?.count || 0;
+    const result2 = await db.select({ count: count() }).from(vehicles).where(eq(vehicles.dealershipId, dealershipId));
+    return result2[0]?.count || 0;
   }
   async getVehicleById(id) {
     const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
@@ -245,11 +264,9 @@ import { Resend } from "resend";
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey) {
-    throw new Error("RESEND_API_KEY environment variable is not set");
-  }
-  if (!fromEmail) {
-    throw new Error("RESEND_FROM_EMAIL environment variable is not set");
+  if (!apiKey || !fromEmail) {
+    console.warn("\u26A0\uFE0F  Email not configured: RESEND_API_KEY or RESEND_FROM_EMAIL not set. Email functionality disabled.");
+    return null;
   }
   return {
     client: new Resend(apiKey),
@@ -257,11 +274,16 @@ function getResendClient() {
   };
 }
 async function sendLeadNotification(lead) {
-  const { client, fromEmail } = getResendClient();
+  const resendClient = getResendClient();
+  if (!resendClient) {
+    console.log("Skipping email notification (email not configured)");
+    return;
+  }
+  const { client, fromEmail } = resendClient;
   console.log("Sending email notification...");
   console.log("From email:", fromEmail);
   console.log("To email:", fromEmail);
-  const result = await client.emails.send({
+  const result2 = await client.emails.send({
     from: fromEmail,
     to: fromEmail,
     // Send to your own email for now
@@ -278,15 +300,20 @@ async function sendLeadNotification(lead) {
       <p>Submitted at: ${(/* @__PURE__ */ new Date()).toLocaleString()}</p>
     `
   });
-  console.log("Email sent successfully:", result);
+  console.log("Email sent successfully:", result2);
 }
 async function sendWelcomeEmail(user) {
-  const { client, fromEmail } = getResendClient();
+  const resendClient = getResendClient();
+  if (!resendClient) {
+    console.log("Skipping welcome email (email not configured)");
+    return;
+  }
+  const { client, fromEmail } = resendClient;
   console.log("Sending welcome email...");
   console.log("From email:", fromEmail);
   console.log("To email:", user.email);
   const trialDays = Math.ceil((user.trialEndsAt.getTime() - Date.now()) / (1e3 * 60 * 60 * 24));
-  const result = await client.emails.send({
+  const result2 = await client.emails.send({
     from: fromEmail,
     to: user.email,
     subject: `Welcome to DealerDelight, ${user.dealershipName}!`,
@@ -317,14 +344,19 @@ async function sendWelcomeEmail(user) {
       </p>
     `
   });
-  console.log("Welcome email sent successfully:", result);
+  console.log("Welcome email sent successfully:", result2);
 }
 async function sendInquiryNotification(inquiry) {
-  const { client, fromEmail } = getResendClient();
+  const resendClient = getResendClient();
+  if (!resendClient) {
+    console.log("Skipping inquiry notification email (email not configured)");
+    return;
+  }
+  const { client, fromEmail } = resendClient;
   console.log("Sending inquiry notification...");
   console.log("From email:", fromEmail);
   console.log("To email:", inquiry.dealerEmail);
-  const result = await client.emails.send({
+  const result2 = await client.emails.send({
     from: fromEmail,
     to: inquiry.dealerEmail,
     replyTo: inquiry.customerEmail,
@@ -348,7 +380,7 @@ async function sendInquiryNotification(inquiry) {
       </p>
     `
   });
-  console.log("Inquiry notification sent successfully:", result);
+  console.log("Inquiry notification sent successfully:", result2);
 }
 
 // server/routes.ts
@@ -487,6 +519,17 @@ var ObjectStorageService = class {
   // Gets the object entity file from path
   async getObjectEntityFile(path3) {
     const cleanPath = path3.replace(/^\/objects\//, "");
+    if (cleanPath.includes("/")) {
+      const pathParts = cleanPath.split("/");
+      if (pathParts[0] && (pathParts[0].includes("dealerdelight") || pathParts[0].includes("bucket"))) {
+        const gsPath = `gs://${cleanPath}`;
+        const file = await this.getObjectEntityFileFromGsPath(gsPath);
+        const [exists] = await file.exists();
+        if (exists) {
+          return file;
+        }
+      }
+    }
     const publicFile = await this.searchPublicObject(cleanPath);
     if (publicFile) {
       return publicFile;
@@ -524,9 +567,8 @@ var ObjectStorageService = class {
     const [url] = await file.getSignedUrl({
       version: "v4",
       action: "write",
-      expires: Date.now() + 15 * 60 * 1e3,
+      expires: Date.now() + 15 * 60 * 1e3
       // 15 minutes
-      contentType: "application/octet-stream"
     });
     return url;
   }
@@ -548,7 +590,11 @@ var ObjectStorageService = class {
         const publicPaths = this.getPublicObjectSearchPaths();
         return publicPaths.some((path3) => filePath.startsWith(path3));
       }
-      return canAccessObject(policy, options.userId);
+      return canAccessObject({
+        userId: options.userId,
+        objectFile: options.objectFile,
+        requestedPermission: "read" /* READ */
+      });
     } catch (error) {
       console.error("Error checking access:", error);
       return false;
@@ -557,7 +603,7 @@ var ObjectStorageService = class {
   // Sets the object ACL policy and returns the public URL
   async trySetObjectEntityAclPolicy(path3, policy) {
     const normalizedPath = this.normalizeObjectEntityPath(path3);
-    const file = await this.getObjectEntityFile(normalizedPath);
+    const file = normalizedPath.startsWith("gs://") ? await this.getObjectEntityFileFromGsPath(normalizedPath) : await this.getObjectEntityFile(normalizedPath);
     await setObjectAclPolicy(file, policy);
     if (policy.visibility === "public") {
       await file.makePublic();
@@ -761,17 +807,41 @@ async function registerRoutes(app2) {
     try {
       const userId = req.userId;
       const dealershipId = req.params.id;
-      const { templateStyle, name } = req.body;
+      const {
+        templateStyle,
+        name,
+        // Stats configuration
+        statsYearsInBusiness,
+        statsTotalClients,
+        statsRating,
+        statsShowVehicleCount,
+        // Services configuration
+        servicesEnabled,
+        servicesData,
+        // Section visibility
+        showStatsSection,
+        showServicesSection,
+        showAboutSection
+      } = req.body;
       const user = await storage.getUser(userId);
       if (!user || user.dealershipId !== dealershipId) {
         return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
       }
       const updateData = {};
-      if (templateStyle) updateData.templateStyle = templateStyle;
-      if (name) {
+      if (templateStyle !== void 0) updateData.templateStyle = templateStyle;
+      if (name !== void 0) {
         updateData.name = name;
         updateData.slug = generateSlug(name);
       }
+      if (statsYearsInBusiness !== void 0) updateData.statsYearsInBusiness = statsYearsInBusiness;
+      if (statsTotalClients !== void 0) updateData.statsTotalClients = statsTotalClients;
+      if (statsRating !== void 0) updateData.statsRating = statsRating;
+      if (statsShowVehicleCount !== void 0) updateData.statsShowVehicleCount = statsShowVehicleCount;
+      if (servicesEnabled !== void 0) updateData.servicesEnabled = servicesEnabled;
+      if (servicesData !== void 0) updateData.servicesData = servicesData;
+      if (showStatsSection !== void 0) updateData.showStatsSection = showStatsSection;
+      if (showServicesSection !== void 0) updateData.showServicesSection = showServicesSection;
+      if (showAboutSection !== void 0) updateData.showAboutSection = showAboutSection;
       const dealership = await storage.updateDealership(dealershipId, updateData);
       res.json(dealership);
     } catch (error) {
@@ -839,9 +909,8 @@ async function registerRoutes(app2) {
       }
       const objectStorageService = new ObjectStorageService();
       try {
-        const objectFile = await objectStorageService.getObjectEntityFile(
-          objectStorageService.normalizeObjectEntityPath(logoUrl)
-        );
+        const normalizedPath = objectStorageService.normalizeObjectEntityPath(logoUrl);
+        const objectFile = await objectStorageService.getObjectEntityFileFromGsPath(normalizedPath);
         const [metadata] = await objectFile.getMetadata();
         const contentType = metadata.contentType || "";
         const fileSize = Number(metadata.size) || 0;
@@ -1246,19 +1315,9 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 var vite_config_default = defineConfig({
   plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
-      await import("@replit/vite-plugin-cartographer").then(
-        (m) => m.cartographer()
-      ),
-      await import("@replit/vite-plugin-dev-banner").then(
-        (m) => m.devBanner()
-      )
-    ] : []
+    react()
   ],
   resolve: {
     alias: {
@@ -1436,11 +1495,11 @@ function injectMetaTags(html, path3, baseUrl) {
     <meta name="twitter:image" content="${meta.ogImage}">
     ${structuredData}
   `;
-  let result = html.replace(/<title>.*?<\/title>/, "");
-  result = result.replace(/<meta name="description"[^>]*>/, "");
-  result = result.replace("</head>", `${metaTagsHtml}
+  let result2 = html.replace(/<title>.*?<\/title>/, "");
+  result2 = result2.replace(/<meta name="description"[^>]*>/, "");
+  result2 = result2.replace("</head>", `${metaTagsHtml}
   </head>`);
-  return result;
+  return result2;
 }
 
 // server/migrate.ts
@@ -1482,6 +1541,13 @@ var sessionMiddleware = session({
 });
 
 // server/index.ts
+var result = config2({ path: resolve(process.cwd(), ".env") });
+if (result.error) {
+  console.error("Error loading .env file:", result.error);
+} else {
+  console.log("\u2713 Environment variables loaded from .env");
+  console.log("\u2713 DATABASE_URL is", process.env.DATABASE_URL ? "SET" : "NOT SET");
+}
 var app = express2();
 app.use(express2.json());
 app.use(express2.urlencoded({ extended: false }));
@@ -1574,11 +1640,8 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
   const port = parseInt(process.env.PORT || "5000", 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true
-  }, () => {
-    log(`serving on port ${port}`);
+  const host = process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost";
+  server.listen(port, host, () => {
+    log(`serving on http://${host}:${port}`);
   });
 })();

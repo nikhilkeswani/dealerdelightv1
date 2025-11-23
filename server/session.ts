@@ -4,6 +4,14 @@ import { pool } from "./db";
 
 const PgSession = connectPgSimple(session);
 
+// Validate SESSION_SECRET in production
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  throw new Error(
+    "SESSION_SECRET environment variable must be set in production! " +
+    "Generate one with: openssl rand -hex 32"
+  );
+}
+
 // Session configuration
 export const sessionMiddleware = session({
   store: new PgSession({

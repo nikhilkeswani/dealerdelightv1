@@ -122,12 +122,16 @@ export default function Inventory() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {vehicles.map((vehicle) => (
             <Card key={vehicle.id} data-testid={`card-vehicle-${vehicle.id}`}>
-              {vehicle.imageUrl && (
+              {vehicle.imageUrl && vehicle.imageUrl.startsWith('/objects/') && (
                 <div className="w-full h-48 bg-muted flex items-center justify-center overflow-hidden rounded-t-lg">
                   <img
                     src={vehicle.imageUrl}
                     alt={vehicle.title}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Hide broken images
+                      e.currentTarget.style.display = 'none';
+                    }}
                     data-testid={`img-vehicle-${vehicle.id}`}
                   />
                 </div>
