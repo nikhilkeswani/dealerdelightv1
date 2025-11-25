@@ -87,27 +87,14 @@ export function AppSidebar() {
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    asChild={!item.comingSoon}
+                    asChild
                     isActive={location === item.url}
-                    disabled={item.comingSoon}
                     data-testid={`link-${item.title.toLowerCase()}`}
                   >
-                    {item.comingSoon ? (
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2">
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          Soon
-                        </Badge>
-                      </div>
-                    ) : (
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    )}
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
