@@ -21,6 +21,7 @@ import {
   Sparkles,
   ChevronRight
 } from "lucide-react";
+import { InquiryForm } from "@/components/inquiry-form";
 // Hero uses pure gradient - no default image needed
 
 type Dealership = {
@@ -612,41 +613,25 @@ export default function PublicDealership() {
               </CardContent>
             </Card>
 
-            {/* Quick Actions Card */}
-            <Card className="border-2 bg-gradient-to-br from-primary/5 to-primary-purple/5">
-              <CardContent className="p-8 h-full flex flex-col justify-center">
-                <h3 className="text-2xl font-bold mb-4">Get More Information</h3>
-                <p className="text-muted-foreground mb-8 text-lg leading-relaxed">
-                  Contact us today to learn more about our inventory, financing options, or to schedule a test drive.
-                </p>
-                
-                <div className="space-y-4">
-                  <Link href={`/${slug}/inventory`}>
-                    <Button 
-                      size="lg" 
-                      className="w-full text-lg py-6 h-auto bg-gradient-to-r from-primary to-primary-purple shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105" 
-                      data-testid="button-view-inventory-cta"
-                    >
-                      View Inventory
-                      <ArrowRight className="ml-2 h-5 w-5" />
-                    </Button>
-                  </Link>
-                  
-                  {dealership.phone && (
-                    <Button 
-                      size="lg" 
-                      variant="outline" 
-                      className="w-full text-lg py-6 h-auto hover:bg-muted transition-all duration-300" 
-                      asChild 
-                      data-testid="button-call-now"
-                    >
-                      <a href={`tel:${dealership.phone}`}>
-                        <Phone className="mr-2 h-5 w-5" />
-                        Call Now
-                      </a>
-                    </Button>
-                  )}
+            {/* Contact Form Card */}
+            <Card className="border-2">
+              <CardContent className="p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Mail className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold">Send Us a Message</h3>
+                    <p className="text-muted-foreground">We'll get back to you soon!</p>
+                  </div>
                 </div>
+                
+                <InquiryForm 
+                  dealershipSlug={slug}
+                  onSuccess={() => {
+                    // Optional: Could show a success message or redirect
+                  }}
+                />
               </CardContent>
             </Card>
           </div>

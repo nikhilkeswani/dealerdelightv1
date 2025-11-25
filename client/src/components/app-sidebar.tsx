@@ -39,7 +39,6 @@ const navigationItems = [
     title: "Leads",
     url: "/leads",
     icon: TrendingUp,
-    comingSoon: true,
   },
 ];
 
