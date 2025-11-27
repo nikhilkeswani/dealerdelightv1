@@ -24,6 +24,9 @@ export interface IStorage {
   getDealershipBySlug(slug: string): Promise<Dealership | undefined>;
   createInquiry(dealershipId: string, inquiry: InsertInquiry): Promise<Inquiry>;
   getInquiriesByDealership(dealershipId: string): Promise<Inquiry[]>;
+  getInquiryById(id: string): Promise<Inquiry | undefined>;
+  updateInquiryStatus(id: string, status: string): Promise<Inquiry>;
+  deleteInquiry(id: string): Promise<void>;
   getUserByDealershipId(dealershipId: string): Promise<User | undefined>;
 }
 
@@ -151,6 +154,24 @@ export class DatabaseStorage implements IStorage {
 
   async getInquiriesByDealership(dealershipId: string): Promise<Inquiry[]> {
     return await db.select().from(inquiries).where(eq(inquiries.dealershipId, dealershipId)).orderBy(desc(inquiries.createdAt));
+  }
+
+  async getInquiryById(id: string): Promise<Inquiry | undefined> {
+    const [inquiry] = await db.select().from(inquiries).where(eq(inquiries.id, id));
+    return inquiry || undefined;
+  }
+
+  async updateInquiryStatus(id: string, status: string): Promise<Inquiry> {
+    const [inquiry] = await db
+      .update(inquiries)
+      .set({ status })
+      .where(eq(inquiries.id, id))
+      .returning();
+    return inquiry;
+  }
+
+  async deleteInquiry(id: string): Promise<void> {
+    await db.delete(inquiries).where(eq(inquiries.id, id));
   }
 
   async getUserByDealershipId(dealershipId: string): Promise<User | undefined> {

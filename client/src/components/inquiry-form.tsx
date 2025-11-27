@@ -51,10 +51,15 @@ export function InquiryForm({ dealershipSlug, vehicleId, vehicleTitle, onSuccess
 
   const submitInquiry = useMutation({
     mutationFn: async (data: InquiryFormValues) => {
+      console.log("Submitting inquiry to:", `/api/public/dealerships/${dealershipSlug}/inquiries`);
+      console.log("Inquiry data:", data);
       const response = await apiRequest("POST", `/api/public/dealerships/${dealershipSlug}/inquiries`, data);
-      return await response.json();
+      const result = await response.json();
+      console.log("Inquiry created:", result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("✅ Inquiry successfully created with ID:", data?.id);
       toast({
         title: "Inquiry Sent!",
         description: "The dealership will contact you soon.",
@@ -63,6 +68,7 @@ export function InquiryForm({ dealershipSlug, vehicleId, vehicleTitle, onSuccess
       onSuccess?.();
     },
     onError: (error: Error) => {
+      console.error("❌ Inquiry submission failed:", error);
       toast({
         title: "Failed to Send Inquiry",
         description: error.message || "Please try again later.",

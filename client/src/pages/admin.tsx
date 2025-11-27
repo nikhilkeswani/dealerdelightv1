@@ -10,25 +10,22 @@ import type { Lead } from "@shared/schema";
 
 export default function Admin() {
   const [password, setPassword] = useState("");
-  const [token, setToken] = useState<string | null>(localStorage.getItem("adminToken"));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [filter, setFilter] = useState("");
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const { data: leads, isLoading, error } = useQuery<Lead[]>({
     queryKey: ["/api/leads"],
-    enabled: !!token,
+    enabled: isAuthenticated,
     queryFn: async () => {
       const response = await fetch("/api/leads", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include", // Important: include session cookie
       });
       if (!response.ok) {
         if (response.status === 401) {
-          // Token is invalid, clear it
-          localStorage.removeItem("adminToken");
-          setToken(null);
+          // Session expired or invalid
+          setIsAuthenticated(false);
         }
         throw new Error("Failed to fetch leads");
       }
@@ -45,9 +42,8 @@ export default function Admin() {
       const response = await apiRequest("POST", "/api/admin/login", { password });
 
       const data = await response.json();
-      if (data.token) {
-        localStorage.setItem("adminToken", data.token);
-        setToken(data.token);
+      if (data.success) {
+        setIsAuthenticated(true);
       } else {
         setLoginError("Invalid password");
       }
@@ -101,7 +97,7 @@ export default function Admin() {
     URL.revokeObjectURL(url);
   };
 
-  if (!token) {
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted">
         <Card className="w-full max-w-md mx-4">

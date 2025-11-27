@@ -730,19 +730,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH /api/inquiries/:id/status - Update inquiry status
+  app.patch("/api/inquiries/:id/status", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const inquiryId = req.params.id;
+      const { status } = req.body;
+      
+      console.log("🔄 Status update request:", { inquiryId, newStatus: status, userId });
+      
+      // Validate status
+      const validStatuses = ['new', 'contacted', 'won', 'lost'];
+      if (!validStatuses.includes(status)) {
+        console.error("❌ Invalid status:", status);
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      
+      // Get inquiry to verify ownership
+      const inquiry = await storage.getInquiryById(inquiryId);
+      if (!inquiry) {
+        console.error("❌ Inquiry not found:", inquiryId);
+        return res.status(404).json({ error: "Inquiry not found" });
+      }
+      
+      console.log("📋 Found inquiry:", { 
+        inquiryId: inquiry.id, 
+        oldStatus: inquiry.status,
+        dealershipId: inquiry.dealershipId 
+      });
+      
+      // Get user to verify they own the dealership
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== inquiry.dealershipId) {
+        console.error("❌ Ownership mismatch:", { 
+          userDealershipId: user?.dealershipId, 
+          inquiryDealershipId: inquiry.dealershipId 
+        });
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      
+      // Update status
+      const updated = await storage.updateInquiryStatus(inquiryId, status);
+      console.log("✅ Status updated successfully:", { inquiryId, newStatus: updated.status });
+      
+      res.json({ success: true, inquiry: updated });
+    } catch (error) {
+      console.error("❌ Error updating inquiry status:", error);
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  });
+
+  // DELETE /api/inquiries/:id - Delete inquiry
+  app.delete("/api/inquiries/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const inquiryId = req.params.id;
+      
+      // Get inquiry to verify ownership
+      const inquiry = await storage.getInquiryById(inquiryId);
+      if (!inquiry) {
+        return res.status(404).json({ error: "Inquiry not found" });
+      }
+      
+      // Get user to verify they own the dealership
+      const user = await storage.getUser(userId);
+      if (!user || user.dealershipId !== inquiry.dealershipId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      
+      // Delete inquiry
+      await storage.deleteInquiry(inquiryId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting inquiry:", error);
+      res.status(500).json({ error: "Failed to delete inquiry" });
+    }
+  });
+
   // GET /api/dealerships/:id/inquiries - Get all customer inquiries for a dealership
   app.get("/api/dealerships/:id/inquiries", requireAuth, async (req, res) => {
     try {
       const userId = (req as any).userId;
       const dealershipId = req.params.id;
       
+      console.log("📊 Fetching inquiries:", {
+        userId,
+        requestedDealershipId: dealershipId,
+      });
+      
       // Get user to verify ownership
       const user = await storage.getUser(userId);
+      console.log("👤 User info:", {
+        userId: user?.id,
+        userDealershipId: user?.dealershipId,
+        matches: user?.dealershipId === dealershipId,
+      });
+      
       if (!user || user.dealershipId !== dealershipId) {
         return res.status(403).json({ error: "Forbidden: You don't own this dealership" });
       }
       
       const inquiries = await storage.getInquiriesByDealership(dealershipId);
+      console.log("📋 Found inquiries:", {
+        dealershipId,
+        count: inquiries.length,
+        inquiryIds: inquiries.map(i => i.id),
+      });
       res.json(inquiries);
     } catch (error) {
       console.error("Error fetching inquiries:", error);
@@ -926,6 +1020,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Dealership not found" });
       }
       
+      console.log("📧 Creating inquiry for dealership:", {
+        slug,
+        dealershipId: dealership.id,
+        dealershipName: dealership.name,
+      });
+      
       // Validate inquiry data
       const validatedData = insertInquirySchema.parse(req.body);
       
@@ -940,6 +1040,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create inquiry
       const inquiry = await storage.createInquiry(dealership.id, validatedData);
+      console.log("✅ Inquiry created successfully:", {
+        inquiryId: inquiry.id,
+        dealershipId: inquiry.dealershipId,
+        customerName: inquiry.customerName,
+      });
       
       // Get dealership owner's email to send notification
       const dealerUser = await storage.getUserByDealershipId(dealership.id);
